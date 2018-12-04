@@ -61,7 +61,7 @@ plot(wgs)
 
 # Afghanistan, can't figure out CRS
 # http://d-portal.org/q.xml?aid=NL-KVK-41009723-AFG228-1
-coordinates(nonwgs) = ~location_longitude+location_latitude
-proj4string(nonwgs) = CRS("+init=epsg:32641")
-nonwgs_trans = spTransform(nonwgs,CRS("+init=epsg:4326"))
-coordinates(nonwgs_trans)
+# coordinates(nonwgs) = ~location_longitude+location_latitude
+# proj4string(nonwgs) = CRS("+init=epsg:32641")
+# nonwgs_trans = spTransform(nonwgs,CRS("+init=epsg:4326"))
+# coordinates(nonwgs_trans)
