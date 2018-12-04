@@ -1,4 +1,4 @@
-list.of.packages <- c("xml2","data.table","varhandle","readr","purrr")
+list.of.packages <- c("data.table","sp","readr")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only=T)
@@ -6,68 +6,62 @@ lapply(list.of.packages, require, character.only=T)
 wd = "~/git/IATI-location-analysis"
 setwd(wd)
 
-# dat = read_csv("iati.csv",col_types=cols(.default = "c"))
-# dat$long_description = NULL
-# dat$short_description = NULL
-# dat = subset(dat,!is.na(location_xml))
-# save(dat,file="iati.RData")
+# Uganda
+# Kenya
+# Nigeria
+# Rwanda
+# Pakistan
+# Afghanistan
+# Moz
+# Ghana
+# Ethiopia
+# Tanz
+# Liberia
+countries = c("ug","ke","ng","rw","pk","af","mz","gh","et","tz","lr")
 
-load("iati.RData")
+# map_url = paste0(
+#   "http://www.d-portal.org/ctrack/q?select=*&from=act%2Clocation%2Ccountry&form=csv&limit=-1&country_code=",
+#   paste(countries,collapse="%7C"),
+#   "&view=map&country_percent=100&human="
+# )
+# 
+# dat = read_csv(map_url,col_types = cols(.default = "c"))
+# save(dat,file="d_portal_map.RData")
+load("d_portal_map.RData")
 
-location_xmls = unique(dat$location_xml)
+# Divide by the number of locations per project
+dat = data.table(dat)
+dat[,num_locats:=nrow(.SD),by=.(aid)]
+dat$commitment = as.numeric(dat$commitment)/dat$num_locats
+dat$commitment_cad = as.numeric(dat$commitment_cad)/dat$num_locats
+dat$commitment_eur = as.numeric(dat$commitment_eur)/dat$num_locats
+dat$commitment_gbp = as.numeric(dat$commitment_gbp)/dat$num_locats
+dat$spend = as.numeric(dat$spend)/dat$num_locats
+dat$spend_cad = as.numeric(dat$spend_cad)/dat$num_locats
+dat$spend_eur = as.numeric(dat$spend_eur)/dat$num_locats
+dat$spend_gbp = as.numeric(dat$spend_gbp)/dat$num_locats
 
-loc_list = list()
+dat$location_latitude = as.numeric(dat$location_latitude)
+dat$location_longitude = as.numeric(dat$location_longitude)
+wgs = subset(dat,
+             location_latitude >= -180 &
+               location_latitude <= 180 &
+               location_longitude >= -180 &
+               location_longitude <= 180
+             )
+nonwgs = subset(dat,
+                location_latitude < -180 |
+                  location_latitude > 180 |
+                  location_longitude < -180 |
+                  location_longitude > 180
+)
+coordinates(wgs) = ~location_longitude+location_latitude
+proj4string(wgs) = CRS("+init=epsg:4326")
+plot(wgs)
 
-pb <- txtProgressBar(min = 1, max = length(location_xmls), style = 3)
-
-for(i in 1:length(location_xmls)){
-  setTxtProgressBar(pb, i)
-  location_xml = location_xmls[i]
-  locations = read_xml(location_xml)
-  location_elems = xml_children(locations)
-  loc_df = data.frame(location_xml = location_xml)
-  for(j in 1:length(location_elems)){
-    location = location_elems[j]
-    location_children = xml_children(location)
-    for(child in location_children){
-      child_name = xml_name(child)
-      # Capture all child attributes
-      child_attribs = xml_attrs(child)
-      for(k in 1:length(child_attribs)){
-        child_attrib_name = names(child_attribs)[k]
-        var_name = paste(j,child_name,child_attrib_name,sep=".")
-        var_value = child_attribs[k]
-        loc_df[,var_name] = var_value
-      }
-      # Including text
-      var_name = paste(j,child_name,"text",sep=".")
-      var_value = xml_text(child)
-      if(var_value!=""){
-        loc_df[,var_name] = var_value
-      }
-      location_grandchildren = xml_children(child)
-      if(length(location_grandchildren)>0){
-        for(m in 1:length(location_grandchildren)){
-          grandchild = location_grandchildren[m]
-          grandchild_name = xml_name(grandchild)
-          # Capture all grandchild attributes
-          grandchild_attribs = xml_attrs(grandchild)
-          for(n in 1:length(grandchild_attribs)){
-            grandchild_attrib_name = names(grandchild_attribs)[n]
-            var_name = paste(j,grandchild_name,grandchild_attrib_name,sep=".")
-            var_value = grandchild_attribs[n]
-            loc_df[,var_name] = var_value
-          }
-          # Including text
-          var_name = paste(j,grandchild_name,"text",sep=".")
-          var_value = xml_text(grandchild)
-          if(var_value!=""){
-            loc_df[,var_name] = var_value
-          }
-        }
-      }
-    }
-  }
-  loc_list[[i]] = loc_df
-}
-close(pb)
+# Afghanistan, can't figure out CRS
+# http://d-portal.org/q.xml?aid=NL-KVK-41009723-AFG228-1
+coordinates(nonwgs) = ~location_longitude+location_latitude
+proj4string(nonwgs) = CRS("+init=epsg:32641")
+nonwgs_trans = spTransform(nonwgs,CRS("+init=epsg:4326"))
+coordinates(nonwgs_trans)
