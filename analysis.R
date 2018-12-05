@@ -151,4 +151,4 @@ dat_sectors$spend_cad = as.numeric(dat_sectors$spend_cad)*dat_sectors$purpose_pe
 dat_sectors$spend_eur = as.numeric(dat_sectors$spend_eur)*dat_sectors$purpose_percentage
 dat_sectors$spend_gbp = as.numeric(dat_sectors$spend_gbp)*dat_sectors$purpose_percentage
 
-save(dat_sectors,sec_df,file="d_portal_sectors.RData")
+save(dat_sectors,file="d_portal_sectors.RData")
