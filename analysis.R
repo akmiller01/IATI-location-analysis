@@ -55,13 +55,13 @@ nonwgs = subset(dat,
                   location_longitude < -180 |
                   location_longitude > 180
 )
-coordinates(wgs) = ~location_longitude+location_latitude
-proj4string(wgs) = CRS("+init=epsg:4326")
-plot(wgs)
-
-# Afghanistan, can't figure out CRS
+# NL accidentally forgot decimal points
 # http://d-portal.org/q.xml?aid=NL-KVK-41009723-AFG228-1
-# coordinates(nonwgs) = ~location_longitude+location_latitude
-# proj4string(nonwgs) = CRS("+init=epsg:32641")
-# nonwgs_trans = spTransform(nonwgs,CRS("+init=epsg:4326"))
-# coordinates(nonwgs_trans)
+nonwgs$location_latitude = nonwgs$location_latitude/10000
+nonwgs$location_longitude = nonwgs$location_longitude/10000
+
+iati_loc = rbind(wgs,nonwgs)
+
+coordinates(iati_loc) = ~location_longitude+location_latitude
+proj4string(iati_loc) = CRS("+init=epsg:4326")
+plot(iati_loc)
