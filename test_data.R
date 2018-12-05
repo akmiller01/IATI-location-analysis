@@ -32,3 +32,10 @@ summary(fit)
 
 plot(crs_spend~spend,data=country_tab)
 abline(0,1)
+
+country_tab$prox = (country_tab$spend/country_tab$crs_spend)
+within_70 = subset(country_tab,prox>=0.7 & prox<=1.3)
+countryyears = paste0(within_70$country_code,within_70$start_year)
+
+dat$countryyear = paste0(dat$country_code,dat$start_year)
+dat_70 = subset(dat,countryyear %in% countryyears)
