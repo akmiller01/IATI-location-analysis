@@ -1,4 +1,4 @@
-list.of.packages <- c("data.table","sp","readr")
+list.of.packages <- c("data.table","sp","readr","xml2")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only=T)
@@ -19,15 +19,14 @@ setwd(wd)
 # Liberia
 countries = c("ug","ke","ng","rw","pk","af","mz","gh","et","tz","lr")
 
-# map_url = paste0(
-#   "http://www.d-portal.org/ctrack/q?select=*&from=act%2Clocation%2Ccountry&form=csv&limit=-1&country_code=",
-#   paste(countries,collapse="%7C"),
-#   "&view=map&country_percent=100&human="
-# )
-# 
-# dat = read_csv(map_url,col_types = cols(.default = "c"))
-# save(dat,file="d_portal_map.RData")
-load("d_portal_map.RData")
+map_url = paste0(
+  "http://www.d-portal.org/ctrack/q?select=*&from=act%2Clocation%2Ccountry&form=csv&limit=-1&country_code=",
+  paste(countries,collapse="%7C"),
+  "&view=map&country_percent=100&human="
+)
+
+dat = read_csv(map_url,col_types = cols(.default = "c"))
+save(dat,file="d_portal_raw.RData")
 
 # Divide by the number of locations per project
 dat = data.table(dat)
@@ -60,8 +59,85 @@ nonwgs = subset(dat,
 nonwgs$location_latitude = nonwgs$location_latitude/10000
 nonwgs$location_longitude = nonwgs$location_longitude/10000
 
-iati_loc = rbind(wgs,nonwgs)
+dat = rbind(wgs,nonwgs)
 
-coordinates(iati_loc) = ~location_longitude+location_latitude
-proj4string(iati_loc) = CRS("+init=epsg:4326")
-plot(iati_loc)
+save(dat, file="d_portal_map.RData")
+
+calculate_sectors = function(d_port_url){
+  aid_id = substr(d_port_url,32,nchar(d_port_url))
+  xml_url = paste0("http://d-portal.org/q.xml?aid=",aid_id)
+  xml_root = read_xml(xml_url)
+  activity = xml_children(xml_root)[1]
+  activity_children = xml_children(activity)
+  child_names = sapply(activity_children,xml_name)
+  if("transaction" %in% child_names){
+    trans_sectors = c()
+    transactions = xml_find_all(activity, ".//transaction")
+    for(trans in transactions){
+      trans_children = xml_children(trans)
+      trans_child_names = sapply(trans_children,xml_name)
+      value_elem = xml_find_first(trans,".//value")
+      value = as.numeric(xml_text(value_elem))
+      if("sector" %in% trans_child_names){
+        sector_elem = xml_find_first(trans,".//sector")
+        sector_vocab = xml_attr(sector_elem,"vocabulary")
+        if(sector_vocab %in% c("1","2","DAC","DAC-3")){
+          sector_code = xml_attr(sector_elem,"code")
+          purpose_code = substr(sector_code,1,2)
+          trans_sectors[purpose_code]=value
+        }
+      }
+    }
+    trans_sectors = trans_sectors/sum(trans_sectors)
+    return(trans_sectors)
+  }else if("sector" %in% child_names){
+    act_sectors = c()
+    act_sector_elems = xml_find_all(activity,".//sector")
+    for(act_sector_elem in act_sector_elems){
+      sector_vocab = xml_attr(act_sector_elem,"vocabulary")
+      value = as.numeric(xml_attr(act_sector_elem,"percentage"))
+      if(sector_vocab %in% c("1","2","DAC","DAC-3")){
+        sector_code = xml_attr(act_sector_elem,"code")
+        purpose_code = substr(sector_code,1,2)
+        act_sectors[purpose_code]=value
+      }
+    }
+    act_sectors = act_sectors/sum(act_sectors)
+    return(act_sectors)
+  }
+}
+
+unique.activities = unique(dat$aid)
+sec_df_list = list()
+sec_df_index = 1
+pb = txtProgressBar(min=1,max=length(unique.activities),style=3)
+for(i in 1:length(unique.activities)){
+  unique.activity = unique.activities[i]
+  sec_vec = calculate_sectors(unique.activity)
+  if(length(sec_vec)>0){
+    sec_df_tmp = data.frame(
+      purpose_code=names(sec_vec),
+      purpose_percentage=sec_vec,
+      aid = unique.activity
+    )
+    sec_df_list[[sec_df_index]] = sec_df_tmp
+    sec_df_index = sec_df_index + 1
+  }
+  setTxtProgressBar(pb, i)
+}
+close(pb)
+
+sec_df = rbindlist(sec_df_list)
+
+dat_sectors = merge(dat, sec_df, by="aid")
+
+dat_sectors$commitment = as.numeric(dat_sectors$commitment)*dat_sectors$purpose_percentage
+dat_sectors$commitment_cad = as.numeric(dat_sectors$commitment_cad)*dat_sectors$purpose_percentage
+dat_sectors$commitment_eur = as.numeric(dat_sectors$commitment_eur)*dat_sectors$purpose_percentage
+dat_sectors$commitment_gbp = as.numeric(dat_sectors$commitment_gbp)*dat_sectors$purpose_percentage
+dat_sectors$spend = as.numeric(dat_sectors$spend)*dat_sectors$purpose_percentage
+dat_sectors$spend_cad = as.numeric(dat_sectors$spend_cad)*dat_sectors$purpose_percentage
+dat_sectors$spend_eur = as.numeric(dat_sectors$spend_eur)*dat_sectors$purpose_percentage
+dat_sectors$spend_gbp = as.numeric(dat_sectors$spend_gbp)*dat_sectors$purpose_percentage
+
+save(dat_sectors,file="d_portal_sectors.RData")
