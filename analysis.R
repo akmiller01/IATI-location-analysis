@@ -91,8 +91,13 @@ calculate_sectors = function(d_port_url){
       }
     }
     trans_sectors = trans_sectors/sum(trans_sectors)
-    return(trans_sectors)
-  }else if("sector" %in% child_names){
+    if(length(trans_sectors)>0){
+      if(!(length(trans_sectors)==1 & names(trans_sectors)[1]=="")){
+        return(trans_sectors) 
+      }
+    }
+  }
+  if("sector" %in% child_names){
     act_sectors = c()
     act_sector_elems = xml_find_all(activity,".//sector")
     for(act_sector_elem in act_sector_elems){
@@ -131,6 +136,9 @@ for(i in 1:length(unique.activities)){
 close(pb)
 
 sec_df = rbindlist(sec_df_list)
+sec_df = subset(sec_df,purpose_code!="")
+sec_df[,num_secs:=nrow(.SD),by=.(aid)]
+sec_df$purpose_percentage[which(sec_df$purpose_percentage=="0")] = 1/sec_df$num_secs[which(sec_df$purpose_percentage=="0")]
 
 dat_sectors = merge(dat, sec_df, by="aid")
 
@@ -143,4 +151,4 @@ dat_sectors$spend_cad = as.numeric(dat_sectors$spend_cad)*dat_sectors$purpose_pe
 dat_sectors$spend_eur = as.numeric(dat_sectors$spend_eur)*dat_sectors$purpose_percentage
 dat_sectors$spend_gbp = as.numeric(dat_sectors$spend_gbp)*dat_sectors$purpose_percentage
 
-save(dat_sectors,file="d_portal_sectors.RData")
+save(dat_sectors,sec_df,file="d_portal_sectors.RData")
