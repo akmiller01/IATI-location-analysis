@@ -1,4 +1,4 @@
-list.of.packages <- c("data.table")
+list.of.packages <- c("data.table","varhandle")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only=T)
@@ -10,3 +10,25 @@ load("d_portal_map.RData")
 
 dat$start_year = as.numeric(substr(dat$day_start,1,4))
 dat$end_year = as.numeric(substr(dat$day_end,1,4))
+
+country_tab = data.table(dat)[,.(spend=sum(spend),commitment=sum(commitment)),by=.(country_code,start_year)]
+country_tab = country_tab[order(country_tab$country_code,country_tab$start_year),]
+# write.csv(country_tab,"country_tab.csv",na="",row.names=F)
+
+table2a = read.csv("TABLE2A_export.csv")
+table2a = data.table(table2a)[,.(crs_spend=sum(Value)),by=.(Recipient,Year)]
+names(table2a) = c("country_code","start_year","crs_spend")
+table2a$country_code = unfactor(table2a$country_code)
+table2a$country_code[which(table2a$country_code=="Tanzania")] = "Tanzania, United Republic of"
+
+country_tab = merge(country_tab,table2a,by=c("country_code","start_year"),all.x=T)
+country_tab$spend = country_tab$spend+country_tab$commitment
+country_tab$spend = country_tab$spend/1000000
+
+cor(country_tab$spend,country_tab$crs_spend,use="pairwise.complete.obs")
+
+fit = lm(crs_spend~spend+country_code+start_year,data=country_tab)
+summary(fit)
+
+plot(crs_spend~spend,data=country_tab)
+abline(0,1)
