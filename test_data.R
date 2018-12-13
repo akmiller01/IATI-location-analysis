@@ -39,3 +39,7 @@ countryyears = paste0(within_70$country_code,within_70$start_year)
 
 dat$countryyear = paste0(dat$country_code,dat$start_year)
 dat_70 = subset(dat,countryyear %in% countryyears)
+
+dat_precise = subset(dat,location_precision=="1")
+country_tab_precision = data.table(dat_precise)[,.(spend=sum(spend),commitment=sum(commitment)),by=.(country_code,start_year,location_precision)]
+country_tab_precision = country_tab_precision[order(country_tab_precision$country_code,country_tab_precision$start_year),]
